@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GreenWatch — Crop Growth Monitor</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #161922;
+            --border: #2a2d35;
+            --green: #4ade80;
+            --text: #f0f2f5;
+            --muted: #9ca3af;
+            --red: #f87171;
+            --font-family: 'Inter', sans-serif;
+            --radius-card: 12px;
+            --radius-btn: 8px;
+            --transition: all 0.2s ease;
+            --shadow: 0 1px 8px rgba(0,0,0,0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-family); background: var(--bg); color: var(--text); line-height: 1.5; padding-bottom: 3rem; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+        /* General */
+        h1, h2, h3, h4 { color: var(--text); font-weight: 600; }
+        .text-muted { color: var(--muted); }
+        .text-green { color: var(--green); }
+        
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: var(--shadow); padding: 1.5rem; }
+
+        /* Header */
+        header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+        .logo-icon { width: 48px; height: 48px; color: var(--green); }
+        header h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+        header p { color: var(--muted); font-size: 1rem; }
+
+        /* Upload Zone */
+        .upload-section { margin-bottom: 2rem; }
+        .drop-zone {
+            border: 2px dashed var(--border); border-radius: var(--radius-card); padding: 3rem 2rem;
+            text-align: center; cursor: pointer; transition: var(--transition); background: var(--surface);
+        }
+        .drop-zone.dragover { border-color: var(--green); background: rgba(74, 222, 128, 0.05); }
+        .drop-zone svg { width: 48px; height: 48px; color: var(--muted); margin-bottom: 1rem; transition: var(--transition); }
+        .drop-zone.dragover svg { color: var(--green); }
+        .drop-zone h3 { margin-bottom: 0.5rem; }
+        
+        .upload-preview { display: flex; gap: 1rem; overflow-x: auto; margin-top: 1rem; padding-bottom: 0.5rem; }
+        .preview-item { position: relative; width: 80px; height: 80px; border-radius: var(--radius-btn); overflow: hidden; border: 1px solid var(--border); flex-shrink: 0; }
+        .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .remove-btn { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .remove-btn:hover { background: var(--red); }
+        
+        .process-btn-container { margin-top: 1.5rem; text-align: center; display: none; }
+        .btn-primary { background: var(--green); color: var(--bg); border: none; padding: 0.75rem 2rem; border-radius: var(--radius-btn); font-weight: 600; font-size: 1rem; cursor: pointer; transition: var(--transition); box-shadow: 0 4px 14px rgba(74, 222, 128, 0.3); }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: var(--radius-btn); font-weight: 500; cursor: pointer; transition: var(--transition); }
+        .btn-outline:hover { background: var(--border); }
+
+        /* Stats Row */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { display: flex; flex-direction: column; gap: 0.5rem; }
+        .stat-label { font-size: 0.875rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+        .stat-value { font-size: 2.5rem; font-weight: 700; color: var(--text); }
+
+        /* Main Content Grid */
+        .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+        @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } }
+
+        /* Chart */
+        .chart-container { height: 320px; position: relative; margin-top: 1rem; }
+        .empty-chart-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+
+        /* Table */
+        .table-container { overflow-x: auto; max-height: 400px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--border); }
+        th { color: var(--muted); font-weight: 600; font-size: 0.875rem; position: sticky; top: 0; background: var(--surface); z-index: 10; }
+        tr { cursor: pointer; transition: var(--transition); }
+        tr:hover { background: rgba(255,255,255,0.02); }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .badge.processing { background: rgba(156, 163, 175, 0.1); color: var(--muted); }
+        .badge.done { background: rgba(74, 222, 128, 0.1); color: var(--green); }
+
+        /* Pipeline Visualizations */
+        .pipelines-section { display: flex; flex-direction: column; gap: 2rem; margin-bottom: 2rem; }
+        .pipeline-card { animation: fadeIn 0.5s ease; border-color: var(--border); }
+        .pipeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+        .pipeline-title { font-size: 1.25rem; font-weight: 600; }
+        .pipeline-badge { background: rgba(74, 222, 128, 0.1); color: var(--green); padding: 0.35rem 0.75rem; border-radius: 999px; font-weight: 600; font-size: 0.875rem; border: 1px solid rgba(74, 222, 128, 0.2); }
+        
+        .canvas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        @media (max-width: 768px) { .canvas-grid { grid-template-columns: 1fr; } }
+        
+        .canvas-panel { background: #000; border: 1px solid var(--border); border-radius: var(--radius-btn); overflow: hidden; position: relative; display: flex; flex-direction: column; aspect-ratio: 1/1; }
+        .canvas-panel canvas { width: 100%; height: 100%; object-fit: contain; flex: 1; }
+        .panel-label { background: rgba(15, 17, 23, 0.95); padding: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--text); text-align: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10; border-bottom: 1px solid var(--border); }
+        
+        .spinner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--green); border-radius: 50%; animation: spin 1s linear infinite; display: none; z-index: 20; }
+        .processing .spinner { display: block; }
+        .processing canvas { opacity: 0.2; }
+
+        /* Actions */
+        .actions-section { display: flex; gap: 1rem; justify-content: center; margin-bottom: 3rem; margin-top: 2rem; display: none; }
+
+        /* Footer */
+        footer { border-top: 1px solid var(--border); padding-top: 2rem; text-align: center; font-size: 0.875rem; color: var(--muted); line-height: 1.8; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- SECTION 1 — HEADER -->
+    <header>
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+        </svg>
+        <div>
+            <h1>GreenWatch — Crop Growth Monitor</h1>
+            <p>Upload plant images → instant segmentation & growth analysis</p>
+        </div>
+    </header>
+
+    <!-- SECTION 2 — IMAGE UPLOAD ZONE -->
+    <div class="card upload-section">
+        <div class="drop-zone" id="drop-zone">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <h3>Drop plant images here</h3>
+            <p class="text-muted">or click to browse — PNG, JPG supported, multiple files OK</p>
+            <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+        </div>
+        <div class="upload-preview" id="upload-preview"></div>
+        <div class="process-btn-container" id="process-btn-container">
+            <button class="btn-primary" id="process-btn" onclick="startProcessing()">Process All Images</button>
+        </div>
+    </div>
+
+    <!-- SECTION 4 — STATS ROW -->
+    <div class="stats-grid">
+        <div class="card stat-card">
+            <div class="stat-label">Images Processed</div>
+            <div class="stat-value" id="stat-images">0</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">Total Plants Found</div>
+            <div class="stat-value" id="stat-plants">0</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">Avg Plants / Image</div>
+            <div class="stat-value" id="stat-avg">0.0</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">Total Area (px²)</div>
+            <div class="stat-value" id="stat-area">0</div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <!-- SECTION 5 — LIVE GROWTH CHART -->
+        <div class="card">
+            <div class="chart-container">
+                <div class="empty-chart-msg" id="empty-chart-msg">No data yet — upload images above</div>
+                <canvas id="growth-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- SECTION 6 — RESULTS TABLE -->
+        <div class="card">
+            <h2>Results Summary</h2>
+            <div class="table-container" style="margin-top: 1rem;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Filename</th>
+                            <th>Plants</th>
+                            <th>Area (px²)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-table-body">
+                        <!-- Rows added dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 3 — PIPELINE VISUALIZATION -->
+    <div class="pipelines-section" id="pipelines-container">
+        <!-- Pipeline cards injected here -->
+    </div>
+
+    <!-- SECTION - DIST THRESH COMPARISON -->
+    <div class="card" id="comparison-section" style="display:none; margin-bottom: 2rem;">
+        <h2 id="comparison-title" style="text-align: center; margin-bottom: 1.5rem;">Effect of DIST_THRESH on Watershed</h2>
+        <div class="canvas-grid" style="gap: 2px; background: #000; border: 1px solid var(--border);">
+            <div class="canvas-panel" style="border:none; border-radius:0;">
+                <canvas id="comp-03"></canvas>
+                <div class="panel-label" id="lbl-comp-03">DIST_THRESH=0.3 → ? plant(s)</div>
+            </div>
+            <div class="canvas-panel" style="border:none; border-radius:0;">
+                <canvas id="comp-05"></canvas>
+                <div class="panel-label" id="lbl-comp-05">DIST_THRESH=0.5 → ? plant(s)</div>
+            </div>
+            <div class="canvas-panel" style="border:none; border-radius:0;">
+                <canvas id="comp-06"></canvas>
+                <div class="panel-label" id="lbl-comp-06">DIST_THRESH=0.6 → ? plant(s)</div>
+            </div>
+            <div class="canvas-panel" style="border:none; border-radius:0;">
+                <canvas id="comp-07"></canvas>
+                <div class="panel-label" id="lbl-comp-07">DIST_THRESH=0.7 → ? plant(s)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 8 — DOWNLOAD RESULTS -->
+    <div class="actions-section" id="actions-section">
+        <button class="btn-primary" onclick="downloadJSON()">Download Results (JSON)</button>
+        <button class="btn-outline" onclick="downloadCSV()">Download Report (CSV)</button>
+    </div>
+
+    <!-- SECTION 9 — FOOTER -->
+    <footer>
+        <div>Roll No: 2116230701387 | Computer Vision & Image Processing</div>
+        <div>Topic 32 — Greenhouse Crop Growth Monitoring | Algorithm D: Watershed (Canvas Sim)</div>
+        <div style="margin-top: 0.5rem; font-weight: 600; color: var(--green);">100% client-side — no server required</div>
+    </footer>
+</div>
+
+<script>
+    // --- GLOBAL STATE ---
+    let selectedFiles = [];
+    let processedResults = [];
+    let chartInstance = null;
+
+    // --- UI INTERACTION ---
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const previewContainer = document.getElementById('upload-preview');
+    const processBtnContainer = document.getElementById('process-btn-container');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleFiles(e.dataTransfer.files);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+
+    function handleFiles(files) {
+        for (let i = 0; i < files.length; i++) {
+            if (files[i].type.startsWith('image/')) {
+                const id = Date.now() + i;
+                selectedFiles.push({ id: id, file: files[i] });
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const div = document.createElement('div');
+                    div.className = 'preview-item';
+                    div.id = `preview-${id}`;
+                    div.innerHTML = `
+                        <img src="${e.target.result}" alt="Preview">
+                        <button class="remove-btn" onclick="event.stopPropagation(); removeFile(${id})">×</button>
+                    `;
+                    previewContainer.appendChild(div);
+                };
+                reader.readAsDataURL(files[i]);
+            }
+        }
+        
+        if (selectedFiles.length > 0) {
+            processBtnContainer.style.display = 'block';
+            selectedFiles.sort((a, b) => a.file.name.localeCompare(b.file.name, undefined, {numeric: true}));
+        }
+    }
+
+    function removeFile(id) {
+        selectedFiles = selectedFiles.filter(f => f.id !== id);
+        document.getElementById(`preview-${id}`).remove();
+        if (selectedFiles.length === 0) {
+            processBtnContainer.style.display = 'none';
+        }
+    }
+
+    // --- ALGORITHMS ---
+    function getOtsuThreshold(data, w, h) {
+        let hist = new Array(256).fill(0);
+        let exgData = new Uint8Array(w * h);
+        for (let i = 0; i < data.length; i += 4) {
+            let r = data[i], g = data[i+1], b = data[i+2];
+            let exg = 2 * g - r - b;
+            exg = Math.max(0, Math.min(255, exg));
+            exgData[i/4] = exg;
+            hist[exg]++;
+        }
+        
+        let total = w * h;
+        let sum = 0;
+        for (let i = 0; i < 256; i++) sum += i * hist[i];
+        
+        let sumB = 0, wB = 0, wF = 0, varMax = 0, threshold = 0;
+        for (let i = 0; i < 256; i++) {
+            wB += hist[i];
+            if (wB === 0) continue;
+            wF = total - wB;
+            if (wF === 0) break;
+            
+            sumB += i * hist[i];
+            let mB = sumB / wB;
+            let mF = (sum - sumB) / wF;
+            
+            let varBetween = wB * wF * (mB - mF) * (mB - mF);
+            if (varBetween > varMax) {
+                varMax = varBetween;
+                threshold = i;
+            }
+        }
+        return { threshold, exgData };
+    }
+
+    function findComponents(binaryMask, width, height, minArea) {
+        const visited = new Uint8Array(width * height);
+        const blobs = [];
+        const dx = [-1, 1, 0, 0];
+        const dy = [0, 0, -1, 1];
+        const queue = new Int32Array(width * height);
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = y * width + x;
+                if (binaryMask[idx] === 1 && visited[idx] === 0) {
+                    let qHead = 0;
+                    let qTail = 0;
+                    queue[qTail++] = idx;
+                    visited[idx] = 1;
+                    const blobPixels = [];
+                    
+                    while (qHead < qTail) {
+                        const currIdx = queue[qHead++];
+                        blobPixels.push(currIdx);
+                        const cx = currIdx % width;
+                        const cy = Math.floor(currIdx / width);
+
+                        for (let i = 0; i < 4; i++) {
+                            const nx = cx + dx[i], ny = cy + dy[i];
+                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                const nIdx = ny * width + nx;
+                                if (binaryMask[nIdx] === 1 && visited[nIdx] === 0) {
+                                    visited[nIdx] = 1;
+                                    queue[qTail++] = nIdx;
+                                }
+                            }
+                        }
+                    }
+                    if (blobPixels.length >= minArea) blobs.push(blobPixels);
+                }
+            }
+        }
+        return blobs;
+    }
+
+    function processPipeline(imgData, w, h, distThresh, minArea) {
+        let data = imgData.data;
+        
+        let { threshold, exgData } = getOtsuThreshold(data, w, h);
+        
+        let binaryMask = new Uint8Array(w * h);
+        let totalArea = 0;
+        for (let i = 0; i < w * h; i++) {
+            if (exgData[i] > threshold) {
+                binaryMask[i] = 1;
+                totalArea++;
+            }
+        }
+        
+        let dist = new Int32Array(w * h);
+        for(let i=0; i<w*h; i++) dist[i] = binaryMask[i] ? 999999 : 0;
+        
+        for(let y=0; y<h; y++){
+            for(let x=0; x<w; x++){
+                if(dist[y*w+x] > 0) {
+                    let minD = 999999;
+                    if(x>0) minD = Math.min(minD, dist[y*w+(x-1)]+1);
+                    if(y>0) minD = Math.min(minD, dist[(y-1)*w+x]+1);
+                    dist[y*w+x] = minD;
+                }
+            }
+        }
+        let maxDist = 0;
+        for(let y=h-1; y>=0; y--){
+            for(let x=w-1; x>=0; x--){
+                let minD = dist[y*w+x];
+                if(x<w-1) minD = Math.min(minD, dist[y*w+(x+1)]+1);
+                if(y<h-1) minD = Math.min(minD, dist[(y+1)*w+x]+1);
+                dist[y*w+x] = minD;
+                if(minD > maxDist) maxDist = minD;
+            }
+        }
+        
+        let seedsMask = new Uint8Array(w * h);
+        let threshVal = maxDist * distThresh;
+        for(let i=0; i<w*h; i++) {
+            if (dist[i] > threshVal) seedsMask[i] = 1;
+        }
+        
+        let seedBlobs = findComponents(seedsMask, w, h, 10);
+        
+        let centers = seedBlobs.map(b => {
+            let sx = 0, sy = 0;
+            b.forEach(idx => { sx += idx%w; sy += Math.floor(idx/w); });
+            return {x: sx/b.length, y: sy/b.length};
+        });
+        
+        let finalBlobs = Array.from({length: centers.length}, () => []);
+        
+        for(let i=0; i<w*h; i++) {
+            if(binaryMask[i]) {
+                let minD = Infinity, minIdx = -1;
+                let x = i%w, y = Math.floor(i/w);
+                for(let j=0; j<centers.length; j++) {
+                    let dx = x - centers[j].x, dy = y - centers[j].y;
+                    let d = dx*dx + dy*dy;
+                    if(d < minD) { minD = d; minIdx = j; }
+                }
+                if (minIdx !== -1) finalBlobs[minIdx].push(i);
+            }
+        }
+        
+        let validBlobs = finalBlobs.filter(b => b.length >= minArea);
+        return { binaryMask, dist, maxDist, blobs: validBlobs, totalArea };
+    }
+
+    function getJetColor(v) {
+        let c = {r: 0, g: 0, b: 0};
+        if (v <= 0) return c; 
+        let x = v;
+        c.r = Math.min(255, Math.max(0, Math.floor(255 * (1.5 - Math.abs(x * 4 - 3)))));
+        c.g = Math.min(255, Math.max(0, Math.floor(255 * (1.5 - Math.abs(x * 4 - 2)))));
+        c.b = Math.min(255, Math.max(0, Math.floor(255 * (1.5 - Math.abs(x * 4 - 1)))));
+        return c;
+    }
+
+    // --- PROCESSING PIPELINE ---
+    async function startProcessing() {
+        if (selectedFiles.length === 0) return;
+        
+        document.getElementById('process-btn').disabled = true;
+        document.getElementById('process-btn').innerText = 'Processing...';
+        document.getElementById('pipelines-container').innerHTML = '';
+        document.getElementById('results-table-body').innerHTML = '';
+        document.getElementById('comparison-section').style.display = 'none';
+        processedResults = [];
+        updateChart();
+        document.getElementById('actions-section').style.display = 'none';
+
+        for (let i = 0; i < selectedFiles.length; i++) {
+            await processImage(selectedFiles[i], i);
+        }
+
+        // Render Comparison for the last processed image
+        if (processedResults.length > 0) {
+            const last = processedResults[processedResults.length - 1];
+            renderAnalyzer(last.img, last.file);
+        }
+
+        document.getElementById('process-btn').disabled = false;
+        document.getElementById('process-btn').innerText = 'Process All Images';
+        document.getElementById('actions-section').style.display = 'flex';
+        selectedFiles = []; 
+        previewContainer.innerHTML = '';
+        processBtnContainer.style.display = 'none';
+    }
+
+    async function processImage(fileObj, index) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    executePipeline(img, fileObj.file.name, index, resolve);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(fileObj.file);
+        });
+    }
+
+    function createPipelineCard(filename, id) {
+        const card = document.createElement('div');
+        card.className = 'card pipeline-card';
+        card.innerHTML = `
+            <div class="pipeline-header">
+                <div class="pipeline-title" style="font-weight: 700;">Greenhouse Crop Monitoring | ${filename}</div>
+                <div class="pipeline-badge" id="badge-${id}">Processing...</div>
+            </div>
+            <div class="canvas-grid" style="gap: 2px; background: #000; border: 1px solid var(--border);">
+                <div class="canvas-panel processing" id="panel1-${id}" style="border:none; border-radius:0;">
+                    <div class="spinner"></div>
+                    <canvas id="c1-${id}"></canvas>
+                    <div class="panel-label">1. Original Image</div>
+                </div>
+                <div class="canvas-panel processing" id="panel2-${id}" style="border:none; border-radius:0;">
+                    <div class="spinner"></div>
+                    <canvas id="c2-${id}"></canvas>
+                    <div class="panel-label">2. Otsu Threshold — plants=white</div>
+                </div>
+                <div class="canvas-panel processing" id="panel3-${id}" style="border:none; border-radius:0;">
+                    <div class="spinner"></div>
+                    <canvas id="c3-${id}"></canvas>
+                    <div class="panel-label">3. Distance Transform — bright=centre</div>
+                </div>
+                <div class="canvas-panel processing" id="panel4-${id}" style="border:none; border-radius:0;">
+                    <div class="spinner"></div>
+                    <canvas id="c4-${id}"></canvas>
+                    <div class="panel-label" id="lbl-panel4-${id}">4. Result</div>
+                </div>
+            </div>
+        `;
+        document.getElementById('pipelines-container').appendChild(card);
+        
+        const tr = document.createElement('tr');
+        tr.onclick = () => card.scrollIntoView({behavior: 'smooth'});
+        tr.innerHTML = `
+            <td>${id + 1}</td>
+            <td>${filename}</td>
+            <td id="row-plants-${id}">-</td>
+            <td id="row-area-${id}">-</td>
+            <td><span class="badge processing" id="row-status-${id}">Processing...</span></td>
+        `;
+        document.getElementById('results-table-body').appendChild(tr);
+    }
+
+    function executePipeline(img, filename, id, doneCallback) {
+        createPipelineCard(filename, id);
+        
+        const w = img.width, h = img.height;
+        const c1 = document.getElementById(`c1-${id}`), c2 = document.getElementById(`c2-${id}`), c3 = document.getElementById(`c3-${id}`), c4 = document.getElementById(`c4-${id}`);
+        [c1, c2, c3, c4].forEach(c => { c.width = w; c.height = h; });
+        const ctx1 = c1.getContext('2d'), ctx2 = c2.getContext('2d'), ctx3 = c3.getContext('2d'), ctx4 = c4.getContext('2d');
+
+        setTimeout(() => {
+            ctx1.drawImage(img, 0, 0);
+            document.getElementById(`panel1-${id}`).classList.remove('processing');
+            const imgData = ctx1.getImageData(0, 0, w, h);
+            
+            setTimeout(() => {
+                const res = processPipeline(imgData, w, h, 0.5, 400); 
+                
+                // Panel 2
+                const maskData = new Uint8ClampedArray(w * h * 4);
+                for(let i=0; i<w*h; i++) {
+                    let val = res.binaryMask[i] ? 255 : 0;
+                    maskData[i*4] = val; maskData[i*4+1] = val; maskData[i*4+2] = val; maskData[i*4+3] = 255;
+                }
+                ctx2.putImageData(new ImageData(maskData, w, h), 0, 0);
+                document.getElementById(`panel2-${id}`).classList.remove('processing');
+
+                setTimeout(() => {
+                    // Panel 3
+                    const heatData = new Uint8ClampedArray(w * h * 4);
+                    for (let i = 0; i < w * h; i++) {
+                        const val = res.maxDist > 0 ? res.dist[i] / res.maxDist : 0;
+                        const c = getJetColor(val);
+                        heatData[i*4] = c.r; heatData[i*4+1] = c.g; heatData[i*4+2] = c.b; heatData[i*4+3] = 255;
+                    }
+                    ctx3.putImageData(new ImageData(heatData, w, h), 0, 0);
+                    document.getElementById(`panel3-${id}`).classList.remove('processing');
+
+                    setTimeout(() => {
+                        // Panel 4
+                        ctx4.drawImage(img, 0, 0);
+                        const colors = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#d946ef', '#06b6d4', '#f97316'];
+                        
+                        ctx4.globalAlpha = 0.6;
+                        res.blobs.forEach((blob, bIdx) => {
+                            const color = colors[bIdx % colors.length];
+                            ctx4.fillStyle = color;
+                            let minX=w, minY=h, maxX=0, maxY=0;
+                            blob.forEach(idx => {
+                                const x = idx%w, y = Math.floor(idx/w);
+                                ctx4.fillRect(x, y, 1, 1);
+                                if(x<minX) minX=x; if(x>maxX) maxX=x;
+                                if(y<minY) minY=y; if(y>maxY) maxY=y;
+                            });
+                            ctx4.globalAlpha = 1.0;
+                            ctx4.strokeStyle = color;
+                            ctx4.lineWidth = 2;
+                            ctx4.strokeRect(minX, minY, maxX-minX, maxY-minY);
+                            ctx4.globalAlpha = 0.6;
+                        });
+                        
+                        document.getElementById(`lbl-panel4-${id}`).innerText = `4. Result — ${res.blobs.length} plant(s) detected`;
+                        document.getElementById(`panel4-${id}`).classList.remove('processing');
+                        
+                        document.getElementById(`badge-${id}`).innerText = `${res.blobs.length} plants detected`;
+                        document.getElementById(`row-plants-${id}`).innerText = res.blobs.length;
+                        document.getElementById(`row-area-${id}`).innerText = res.totalArea.toLocaleString();
+                        
+                        const statusBadge = document.getElementById(`row-status-${id}`);
+                        statusBadge.innerText = 'Done ✓';
+                        statusBadge.className = 'badge done';
+
+                        processedResults.push({ file: filename, plants: res.blobs.length, area: res.totalArea, img: img });
+                        updateStats();
+                        updateChart();
+                        doneCallback();
+                    }, 50);
+                }, 50);
+            }, 50);
+        }, 50);
+    }
+
+    function renderAnalyzer(imgObj, filename) {
+        document.getElementById('comparison-section').style.display = 'block';
+        document.getElementById('comparison-title').innerHTML = `Effect of DIST_THRESH on Watershed &nbsp;|&nbsp; <span style="font-weight:400; color:var(--muted)">${filename}</span>`;
+        
+        const thresholds = [0.3, 0.5, 0.6, 0.7];
+        const w = imgObj.width, h = imgObj.height;
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = w; tempCanvas.height = h;
+        const ctxTemp = tempCanvas.getContext('2d');
+        ctxTemp.drawImage(imgObj, 0, 0);
+        const imgData = ctxTemp.getImageData(0, 0, w, h);
+        
+        thresholds.forEach(t => {
+            const res = processPipeline(imgData, w, h, t, 400);
+            const id = t.toString().replace('.', '');
+            const c = document.getElementById(`comp-${id}`);
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            
+            // Draw dark background image like matplotlib
+            ctx.drawImage(imgObj, 0, 0);
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(0, 0, w, h);
+            
+            // Draw green blobs
+            ctx.globalAlpha = 0.8;
+            ctx.fillStyle = '#10b981'; // Green fill
+            res.blobs.forEach(blob => {
+                blob.forEach(idx => ctx.fillRect(idx%w, Math.floor(idx/w), 1, 1));
+            });
+            
+            // Draw red contour approximation (bounding box to save performance, or just border)
+            ctx.globalAlpha = 1.0;
+            ctx.strokeStyle = '#ef4444';
+            res.blobs.forEach(blob => {
+                let minX=w, minY=h, maxX=0, maxY=0;
+                blob.forEach(idx => {
+                    const x = idx%w, y = Math.floor(idx/w);
+                    if(x<minX) minX=x; if(x>maxX) maxX=x; if(y<minY) minY=y; if(y>maxY) maxY=y;
+                });
+                ctx.strokeRect(minX, minY, maxX-minX, maxY-minY);
+            });
+            
+            document.getElementById(`lbl-comp-${id}`).innerText = `DIST_THRESH=${t} → ${res.blobs.length} plant(s)`;
+        });
+    }
+
+    // --- UI UPDATES ---
+    function animateValue(id, end) {
+        const obj = document.getElementById(id);
+        const start = parseFloat(obj.innerText.replace(/,/g, '')) || 0;
+        if (start === end) return;
+        
+        const duration = 500;
+        let startTimestamp = null;
+        
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            let val = progress * (end - start) + start;
+            
+            if (Number.isInteger(end)) {
+                obj.innerText = Math.floor(val).toLocaleString();
+            } else {
+                obj.innerText = val.toFixed(1);
+            }
+            
+            if (progress < 1) window.requestAnimationFrame(step);
+            else obj.innerText = end.toLocaleString(); 
+        };
+        window.requestAnimationFrame(step);
+    }
+
+    function updateStats() {
+        if (processedResults.length === 0) return;
+        const totalImgs = processedResults.length;
+        const totalPlants = processedResults.reduce((s, i) => s + i.plants, 0);
+        const totalArea = processedResults.reduce((s, i) => s + i.area, 0);
+        
+        animateValue('stat-images', totalImgs);
+        animateValue('stat-plants', totalPlants);
+        animateValue('stat-avg', parseFloat((totalPlants / totalImgs).toFixed(1)));
+        animateValue('stat-area', totalArea);
+    }
+
+    function updateChart() {
+        const msgEl = document.getElementById('empty-chart-msg');
+        if (processedResults.length === 0) {
+            msgEl.style.display = 'flex'; msgEl.innerText = "No data yet — upload images above";
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+            return;
+        }
+
+        msgEl.style.display = 'none';
+        const labels = processedResults.map(r => r.file.split('.')[0]);
+        const data = processedResults.map(r => r.area);
+
+        if (chartInstance) chartInstance.destroy();
+
+        const ctx = document.getElementById('growth-chart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Total Plant Area (px^2)',
+                    data: data,
+                    borderColor: '#4ade80',
+                    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#4ade80',
+                    pointBorderWidth: 3,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 800 },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Crop Growth Over Time',
+                        color: '#fff',
+                        font: { size: 18, weight: 'bold', family: 'Inter' },
+                        padding: { top: 10, bottom: 30 }
+                    },
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#161922', titleColor: '#f0f2f5', bodyColor: '#9ca3af',
+                        borderColor: '#2a2d35', borderWidth: 1, padding: 10
+                    }
+                },
+                scales: {
+                    x: { grid: { color: '#2a2d35', drawOnChartArea: false }, ticks: { color: '#9ca3af', font: {family:'Inter'} } },
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#2a2d35' }, 
+                        ticks: { color: '#9ca3af', font: {family:'Inter'} },
+                        title: { display: true, text: 'Total Plant Area (px^2)', color: '#fff', font: {size:14, family:'Inter'} }
+                    }
+                }
+            }
+        });
+    }
+
+    // --- EXPORTS ---
+    function downloadJSON() {
+        const out = processedResults.map(r => ({file: r.file, plants: r.plants, area: r.area}));
+        const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'summary.json'; a.click();
+    }
+
+    function downloadCSV() {
+        let csv = "Filename,Plants Detected,Area (px^2)\n";
+        processedResults.forEach(r => csv += `"${r.file}",${r.plants},${r.area}\n`);
+        const blob = new Blob([csv], { type: "text/csv" });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'report.csv'; a.click();
+    }
+</script>
+</body>
+</html>
